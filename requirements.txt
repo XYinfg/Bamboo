@@ -3,6 +3,13 @@ gunicorn
 python-dotenv
 whitenoise
 django-admin-datta==1.0.6
+python-docx==0.8.10
+gensim==3.8.3
+wordcloud==1.8.1
+Django==3.2.5
+matplotlib==3.3.4
+Pillow==8.1.2
+
 
 # psycopg2-binary
 # mysqlclient

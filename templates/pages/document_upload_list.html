@@ -1,0 +1,33 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block content %}
+
+  <!-- [ Main Content ] start -->
+  <h2>Upload a document</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Upload</button>
+  </form>
+
+  <h2>Uploaded documents</h2>
+  <ul>
+    {% for document in documents %}
+      <li>
+        <a href="{{ document.upload.url }}">{{ document.upload.name }}</a>
+        <p>{{ document.content_summary }}</p>
+        {% if document.wordcloud %}
+          <img src="{{ document.wordcloud.url }}" alt="Word Cloud">
+        {% else %}
+          <p>No word cloud available for this document.</p>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+  <!-- [ Main Content ] end -->
+
+{% endblock content %}
+
+{% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'home/styles.css' %}">

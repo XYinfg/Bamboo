@@ -1,6 +1,7 @@
 from django.urls import path
 from admin_datta import views
 from django.contrib.auth import views as auth_views
+from . import views
 
 
 urlpatterns = [
@@ -47,4 +48,6 @@ urlpatterns = [
   #
   path('profile/', views.profile, name='profile'),
   path('sample-page/', views.sample_page, name='sample_page'),
+
+  path('documents/', views.document_upload_list, name='document_upload_list'),
 ]
