@@ -1,33 +1,53 @@
-{% extends 'layouts/base.html' %}
-{% load static %}
+{% extends 'layouts/base.html' %} {% load static %} {% block content %}
 
-{% block content %}
+<style>
+  .content-wrapper {
+    display: flex;
+    justify-content: space-between;
+  }
+  .upload-section {
+    width: 45%;
+  }
+  .document-list {
+    width: 45%;
+  }
+</style>
 
-  <!-- [ Main Content ] start -->
-  <h2>Upload a document</h2>
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Upload</button>
-  </form>
+<!-- [ Main Content ] start -->
+<div class="content-wrapper">
+  <div class="upload-section">
+    <h3>Upload a document</h3>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %} {{ form.as_p }}
+      <button type="submit">Upload</button>
+      <button type="reset">Cancel</button>
+    </form>
+  </div>
+  <div class="document-list">
+    <h3>Uploaded documents</h3>
+    <form method="post">
+      {% csrf_token %}
+      <ul>
+        {% for document in documents %}
+        <li>
+          <input
+            type="checkbox"
+            name="document_ids"
+            value="{{ document.id }}"
+          />
+          <a href="{{ document.upload.url }}">{{ document.upload.name }}</a>
+          <p>{{ document.content_summary }}</p>
+          {% if document.wordcloud %}
+          <img src="{{ document.wordcloud.url }}" alt="Word Cloud" />
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <button type="submit" name="delete">Delete Selected</button>
+    </form>
+  </div>
+</div>
+<!-- [ Main Content ] end -->
 
-  <h2>Uploaded documents</h2>
-  <ul>
-    {% for document in documents %}
-      <li>
-        <a href="{{ document.upload.url }}">{{ document.upload.name }}</a>
-        <p>{{ document.content_summary }}</p>
-        {% if document.wordcloud %}
-          <img src="{{ document.wordcloud.url }}" alt="Word Cloud">
-        {% else %}
-          <p>No word cloud available for this document.</p>
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ul>
-  <!-- [ Main Content ] end -->
-
-{% endblock content %}
-
-{% load static %}
-<link rel="stylesheet" type="text/css" href="{% static 'home/styles.css' %}">
+{% endblock content %} {% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'home/styles.css' %}" />

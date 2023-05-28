@@ -1,4 +1,5 @@
 from django.db import models
+import os
 
 class Document(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -6,4 +7,16 @@ class Document(models.Model):
     content_summary = models.TextField(blank=True)
     wordcloud = models.ImageField(upload_to='wordclouds/', blank=True)
     # Add other fields for analytics as needed
-# Create your models here.
+    def delete(self, *args, **kwargs):
+        # Delete the uploaded document
+        if self.upload:
+            if os.path.isfile(self.upload.path):
+                os.remove(self.upload.path)
+
+        # Delete the wordcloud image
+        if self.wordcloud:
+            if os.path.isfile(self.wordcloud.path):
+                os.remove(self.wordcloud.path)
+
+        # Delete the model instance
+        super().delete(*args, **kwargs)

@@ -22,6 +22,8 @@ from PIL import Image
 from django.views import View
 from summarizer import Summarizer
 
+from django.db import transaction
+
 
 
 def index(request):
@@ -184,45 +186,53 @@ def sample_page(request):
     return render(request, 'pages/sample-page.html', context)
 
 
+from django.db import transaction
+
+@transaction.atomic
 def document_upload_list(request):
     if request.method == 'POST':
-        form = DocumentForm(request.POST, request.FILES)
-        if form.is_valid():
-            document = form.save()
+        if 'delete' in request.POST:
+            # Delete selected documents
+            document_ids = request.POST.getlist('document_ids')
+            Document.objects.filter(id__in=document_ids).delete()
+        else:
+            # Upload a new document
+            form = DocumentForm(request.POST, request.FILES)
+            if form.is_valid():
+                document = form.save()
 
-            # Read the Word document
-            docx_file = BytesIO(document.upload.read())
-            docx_document = DocxDocument(docx_file)
+                # Read the Word document
+                docx_file = BytesIO(document.upload.read())
+                docx_document = DocxDocument(docx_file)
 
-            # Extract the text
-            text = '\n'.join([
-                paragraph.text for paragraph in docx_document.paragraphs
-            ])
+                # Extract the text
+                text = '\n'.join([
+                    paragraph.text for paragraph in docx_document.paragraphs
+                ])
 
-            # Create a summary
-            model = Summarizer()
-            summary = model(text, min_length=60, max_length=500) 
+                # Create a summary
+                model = Summarizer()
+                summary = model(text, min_length=60, max_length=500)
 
-            # Save the summary to the document
-            document.content_summary = summary
+                # Save the summary to the document
+                document.content_summary = summary
 
-            try:
-                # Generate a word cloud
-                wordcloud = WordCloud().generate(text)
-                plt.imshow(wordcloud, interpolation='bilinear')
-                plt.axis("off")
+                try:
+                    # Generate a word cloud
+                    wordcloud = WordCloud().generate(text)
+                    plt.imshow(wordcloud, interpolation='bilinear')
+                    plt.axis("off")
 
-                # Save the word cloud as an image
-                wordcloud_image = BytesIO()
-                plt.savefig(wordcloud_image, format='png')
-                wordcloud_image.seek(0)
-                document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
-            except Exception as e:
-                print("Wordcloud error")
+                    # Save the word cloud as an image
+                    wordcloud_image = BytesIO()
+                    plt.savefig(wordcloud_image, format='png')
+                    wordcloud_image.seek(0)
+                    document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
+                except Exception as e:
+                    print("Wordcloud error")
 
-            return redirect('document_upload_list')
-    else:
-        form = DocumentForm()
+                return redirect('document_upload_list')
 
+    form = DocumentForm()
     documents = Document.objects.all()
     return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})

@@ -3,6 +3,9 @@ from admin_datta import views
 from django.contrib.auth import views as auth_views
 from . import views
 
+from django.conf import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
   path('', views.index, name='index'),
@@ -50,4 +53,5 @@ urlpatterns = [
   path('sample-page/', views.sample_page, name='sample_page'),
 
   path('documents/', views.document_upload_list, name='document_upload_list'),
-]
+  
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
