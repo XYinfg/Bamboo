@@ -29,17 +29,17 @@
       {% csrf_token %}
       <ul>
         {% for document in documents %}
-        <li>
-          <input
-            type="checkbox"
-            name="document_ids"
-            value="{{ document.id }}"
-          />
-          <a href="{{ document.upload.url }}">{{ document.upload.name }}</a>
-          <p>{{ document.content_summary }}</p>
-          {% if document.wordcloud %}
-          <img src="{{ document.wordcloud.url }}" alt="Word Cloud" />
-          {% endif %}
+        <li class="document-item">
+          <input type="checkbox" name="document_ids" value="{{ document.id }}" />
+          <a class="document-name" href="{{ document.upload.url }}">{{ document.upload.name }}</a>
+          <details>
+            <summary>View Details</summary>
+            <b>Content Summary:</b>
+            <p>{{ document.content_summary }}</p>
+            {% if document.wordcloud %}
+            <img src="{{ document.wordcloud.url }}" alt="Word Cloud" />
+            {% endif %}
+          </details> <Br>
         </li>
         {% endfor %}
       </ul>

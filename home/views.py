@@ -187,6 +187,15 @@ def sample_page(request):
 
 
 from django.db import transaction
+from PyPDF2 import PdfReader
+from transformers import BartTokenizer, BartForConditionalGeneration
+model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn')
+tokenizer = BartTokenizer.from_pretrained('facebook/bart-large-cnn')
+
+def summarize_text(text):
+    inputs = tokenizer([text], max_length=1024, return_tensors='pt')
+    summary_ids = model.generate(inputs['input_ids'], num_beams=4, early_stopping=True)
+    return [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summary_ids]
 
 @transaction.atomic
 def document_upload_list(request):
@@ -202,24 +211,39 @@ def document_upload_list(request):
                 document = form.save()
 
                 # Read the Word document
-                docx_file = BytesIO(document.upload.read())
-                docx_document = DocxDocument(docx_file)
+                file = BytesIO(document.upload.read())
+                ##docx_document = DocxDocument(docx_file)
 
                 # Extract the text
-                text = '\n'.join([
-                    paragraph.text for paragraph in docx_document.paragraphs
-                ])
-
+                ##text = '\n'.join([
+                    ##paragraph.text for paragraph in docx_document.paragraphs
+                ##])
+                # Extract the text
+                if document.upload.name.endswith('.docx'):
+                    docx_document = DocxDocument(file)
+                    text = '\n'.join([
+                        paragraph.text for paragraph in docx_document.paragraphs
+                    ])
+                elif document.upload.name.endswith('.pdf'):
+                    reader = PdfReader(file)
+                    text = '\n'.join([
+                        page.extract_text() for page in reader.pages
+                    ])
+                else:
+                    # Handle other file types as needed
+                    pass
+                  
                 # Create a summary
-                model = Summarizer()
-                summary = model(text, min_length=60, max_length=500)
+                ##model = Summarizer()
+                ##summary = model(text, min_length=60, max_length=500)
+                summary = summarize_text(text)
 
                 # Save the summary to the document
                 document.content_summary = summary
 
                 try:
                     # Generate a word cloud
-                    wordcloud = WordCloud().generate(text)
+                    wordcloud = WordCloud(width=1500, height=1000).generate(text)
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
 

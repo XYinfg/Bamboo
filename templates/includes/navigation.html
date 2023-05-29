@@ -7,7 +7,7 @@
       <div class="b-bg">
         <i class="feather icon-trending-up"></i>
       </div>
-      <span class="b-title">Datta Able</span>
+      <span class="b-title">Doc</span>
     </a>
   </div>
   <a class="mobile-menu" id="mobile-header" href="javascript:">
@@ -21,8 +21,6 @@
         <a class="dropdown-toggle" href="javascript:" data-toggle="dropdown">Dropdown</a>
         <ul class="dropdown-menu">
           <li><a class="dropdown-item" href="javascript:">Action</a></li>
-          <li><a class="dropdown-item" href="javascript:">Another action</a></li>
-          <li><a class="dropdown-item" href="javascript:">Something else here</a></li>
         </ul>
       </li>
       <li class="nav-item">
@@ -110,7 +108,7 @@
           <div class="dropdown-menu dropdown-menu-right profile-notification">
             <div class="pro-head">
               <img src="{% static 'assets/images/user/avatar-1.jpg' %}" class="img-radius" alt="User-Profile-Image">
-              <span>John Doe</span>
+              <span>Bamboo</span>
               {% if request.user.is_authenticated %}
                 {% if request.user.is_superuser %}
                 <a href="{% url 'admin:logout' %}" class="dud-logout" title="Logout">

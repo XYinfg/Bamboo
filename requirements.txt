@@ -9,7 +9,8 @@ wordcloud==1.8.1
 Django==3.2.5
 matplotlib==3.3.4
 Pillow==8.1.2
-
+transformers
+torch
 
 # psycopg2-binary
 # mysqlclient
