@@ -1,4 +1,7 @@
-{% extends 'layouts/base.html' %} {% load static %} {% block content %}
+{% extends 'layouts/base.html' %} 
+{% load static %}
+{% load filters %}
+{% block content %}
 
 <style>
   .content-wrapper {
@@ -31,7 +34,7 @@
         {% for document in documents %}
         <li class="document-item">
           <input type="checkbox" name="document_ids" value="{{ document.id }}" />
-          <a class="document-name" href="{{ document.upload.url }}">{{ document.upload.name }}</a>
+          <a class="document-name" href="{{ document.upload.url }}">{{ document.upload.name|basename }}</a>
           <details>
             <summary>View Details</summary>
             <b>Content Summary:</b>

@@ -14,6 +14,8 @@ from docx import Document as DocxDocument
 from io import BytesIO
 
 from wordcloud import WordCloud
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from django.core.files import File
@@ -24,6 +26,12 @@ from summarizer import Summarizer
 
 from django.db import transaction
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+import docx2txt
+from langdetect import detect
 
 
 def index(request):
@@ -191,12 +199,13 @@ from PyPDF2 import PdfReader
 from transformers import BartTokenizer, BartForConditionalGeneration
 model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn')
 tokenizer = BartTokenizer.from_pretrained('facebook/bart-large-cnn')
-
+'''
 def summarize_text(text):
     inputs = tokenizer([text], max_length=1024, return_tensors='pt')
     summary_ids = model.generate(inputs['input_ids'], num_beams=4, early_stopping=True)
     return [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summary_ids]
-
+'''
+'''
 @transaction.atomic
 def document_upload_list(request):
     if request.method == 'POST':
@@ -221,22 +230,26 @@ def document_upload_list(request):
                 # Extract the text
                 if document.upload.name.endswith('.docx'):
                     docx_document = DocxDocument(file)
+                    print("Doc identified")
                     text = '\n'.join([
                         paragraph.text for paragraph in docx_document.paragraphs
                     ])
                 elif document.upload.name.endswith('.pdf'):
+                    print("Pdf identified")
                     reader = PdfReader(file)
                     text = '\n'.join([
                         page.extract_text() for page in reader.pages
                     ])
                 else:
+                    print("Passed")
                     # Handle other file types as needed
                     pass
                   
                 # Create a summary
-                ##model = Summarizer()
-                ##summary = model(text, min_length=60, max_length=500)
-                summary = summarize_text(text)
+                model = Summarizer()
+                summary = model(text, min_length=60, max_length=500)
+                print("Summarized")
+                ##summary = summarize_text(text)
 
                 # Save the summary to the document
                 document.content_summary = summary
@@ -254,6 +267,70 @@ def document_upload_list(request):
                     document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
                 except Exception as e:
                     print("Wordcloud error")
+
+                return redirect('document_upload_list')
+
+    form = DocumentForm()
+    documents = Document.objects.all()
+    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
+'''
+
+def document_upload_list(request):
+    if request.method == 'POST':
+        if 'delete' in request.POST:
+            # Delete selected documents
+            document_ids = request.POST.getlist('document_ids')
+            Document.objects.filter(id__in=document_ids).delete()
+        else:
+            # Upload a new document
+            form = DocumentForm(request.POST, request.FILES)
+            if form.is_valid():
+                document = form.save()
+
+                # Read the Word document
+                file = BytesIO(document.upload.read())
+
+                # Extract the text
+                if document.upload.name.endswith('.docx'):
+                    docx_document = DocxDocument(file)
+                    text = '\n'.join([
+                        paragraph.text for paragraph in docx_document.paragraphs
+                    ])
+                    logger.info(f"Extracted Text: {text}")
+                elif document.upload.name.endswith('.pdf'):
+                    try:
+                        reader = PdfReader(file)
+                        text = '\n'.join([
+                            page.extract_text() for page in reader.pages
+                        ])
+                        logger.info(f"Extracted Text: {text}")
+                    except PDFSyntaxError as e:
+                        logger.error(f"Failed to read PDF: {e}")
+                        return redirect('document_upload_list')
+                else:
+                    pass
+
+                # Create a summary
+                model = Summarizer()
+                summary = model(text, min_length=60, max_length=500)
+                logger.info(f"Summary: {summary}")
+
+                # Save the summary to the document
+                document.content_summary = summary
+
+                try:
+                    # Generate a word cloud
+                    wordcloud = WordCloud(width=1500, height=1000).generate(text)
+                    plt.imshow(wordcloud, interpolation='bilinear')
+                    plt.axis("off")
+
+                    # Save the word cloud as an image
+                    wordcloud_image = BytesIO()
+                    plt.savefig(wordcloud_image, format='png')
+                    wordcloud_image.seek(0)
+                    document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
+                except Exception as e:
+                    print("Wordcloud error:", e)
 
                 return redirect('document_upload_list')
 
