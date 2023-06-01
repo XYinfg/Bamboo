@@ -11,6 +11,7 @@ matplotlib==3.3.4
 Pillow==8.1.2
 transformers
 torch
+nltk==3.6.3
 
 # psycopg2-binary
 # mysqlclient
