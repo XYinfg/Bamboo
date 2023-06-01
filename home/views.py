@@ -3,7 +3,7 @@ from admin_datta.forms import RegistrationForm, LoginForm, UserPasswordChangeFor
 from django.contrib.auth.views import LoginView, PasswordChangeView, PasswordResetConfirmView, PasswordResetView
 from django.views.generic import CreateView
 from django.contrib.auth import logout
-
+from django.core.files.storage import FileSystemStorage
 from django.contrib.auth.decorators import login_required
 
 from .forms import DocumentForm
@@ -13,7 +13,7 @@ from .models import Document
 from docx import Document as DocxDocument
 from io import BytesIO
 
-from wordcloud import WordCloud
+from wordcloud import WordCloud, ImageColorGenerator
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -32,6 +32,18 @@ logger = logging.getLogger(__name__)
 
 import docx2txt
 from langdetect import detect
+import urllib, base64
+import os
+from django.conf import settings
+import io
+
+import codecs
+from textrank4zh import TextRank4Sentence
+import jieba
+from os import path
+from imageio import imread
+
+from django.shortcuts import get_object_or_404
 
 
 def index(request):
@@ -275,6 +287,111 @@ def document_upload_list(request):
     return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
 '''
 
+
+def document_upload_list(request):
+    if request.method == 'POST':
+        if 'delete' in request.POST:
+            # Delete selected documents
+            document_ids = request.POST.getlist('document_ids')
+            Document.objects.filter(id__in=document_ids).delete()
+        else:
+            # Upload a new document
+            form = DocumentForm(request.POST, request.FILES)
+            if form.is_valid():
+                document = form.save()
+
+                # Read the Word document
+                file = BytesIO(document.upload.read())
+
+                # Extract the text
+                if document.upload.name.endswith('.docx'):
+                    docx_document = DocxDocument(file)
+                    text = '\n'.join([
+                        paragraph.text for paragraph in docx_document.paragraphs
+                    ])
+                    logger.info(f"Extracted Text: {text}")
+                    logger.info("Dox identified!")
+                elif document.upload.name.endswith('.pdf'):
+                    try:
+                        reader = PdfReader(file)
+                        text = '\n'.join([
+                            page.extract_text() for page in reader.pages
+                        ])
+                        logger.info(f"Extracted Text: {text}")
+                        logger.info("PDF identified!")
+                    except PDFSyntaxError as e:
+                        logger.error(f"Failed to read PDF: {e}")
+                        return redirect('document_upload_list')
+                elif document.upload.name.endswith('.txt'):
+                    text = file.getvalue().decode('utf-8')
+                    logger.info(f"Extracted Text: {text}")
+                else:
+                    pass
+
+                # Create a summary
+                if 'zh' in detect(text):
+                    logger.info("ZH identified!")
+                    print('Before TextRank4Sentence')
+                    tr4s = TextRank4Sentence()
+                    print('After TextRank4Sentence')
+                    tr4s.analyze(text=text, lower=True, source = 'all_filters')
+                    print('After analyze')
+                    summary = ' '.join([item.sentence for item in tr4s.get_key_sentences(num=3)])
+                else:
+                    logger.info("Generating EN summary!")
+                    model = Summarizer()
+                    summary = model(text, min_length=60, max_length=500)
+                    logger.info("Generating EN summary!")
+                    logger.info(f"Summary: {summary}")
+                    print("Summary generated!")
+
+                '''  
+                # Create a summary
+                model = Summarizer()
+                summary = model(text, min_length=60, max_length=500)
+                logger.info(f"Summary: {summary}")
+                '''  
+
+                # Save the summary to the document
+                document.content_summary = summary
+
+                try:
+                    # Generate a word cloud
+                    if 'zh' in detect(text):
+                        logger.info("ZH Wordcloud!")
+                        wc = WordCloud(background_color="white", max_words=2000, width=1500, height=1000, font_path='fonts/chinese.msyh.ttf')
+                        seg_list = jieba.cut(text, cut_all=False)
+                        wc.generate(" ".join(seg_list))
+                    else:
+                        logger.info("EN Wordcloud!")
+                        wc = WordCloud(width=1500, height=1000, max_words=2000, background_color='white')
+                        wc.generate(text)
+
+                    # Display the word cloud
+                    plt.imshow(wc, interpolation='bilinear')
+                    plt.axis("off")
+                    # Save the word cloud as an image
+                    wordcloud_image = BytesIO()
+                    plt.savefig(wordcloud_image, format='png')
+                    wordcloud_image.seek(0)
+                    document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
+                    logger.info("Wordcloud done!")
+
+                except Exception as e:
+                    print("Error occurred:", str(e))
+
+                return redirect('document_upload_list')
+
+    form = DocumentForm()
+    documents = Document.objects.all()
+    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
+  
+
+def document_detail(request, document_id):
+  document = get_object_or_404(Document, pk=document_id)
+  return render(request, 'pages/document_detail.html', {'document': document})
+
+'''  
 def document_upload_list(request):
     if request.method == 'POST':
         if 'delete' in request.POST:
@@ -320,7 +437,7 @@ def document_upload_list(request):
 
                 try:
                     # Generate a word cloud
-                    wordcloud = WordCloud(width=1500, height=1000).generate(text)
+                    wordcloud = WordCloud(width=1500, height=1000, background_color='white', horizontal_layout=True).generate(text)
                     plt.imshow(wordcloud, interpolation='bilinear')
                     plt.axis("off")
 
@@ -337,3 +454,5 @@ def document_upload_list(request):
     form = DocumentForm()
     documents = Document.objects.all()
     return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
+'''  
+
