@@ -6,50 +6,170 @@
 <style>
   .content-wrapper {
     display: flex;
-    justify-content: space-between;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    gap: 20px; /* add space between the document list and upload section */
   }
-  .upload-section {
-    width: 45%;
-  }
+  .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
   .document-list {
-    width: 45%;
+    width: 95%;
+  }
+  .document-list h3, .upload-section h3 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+  }
+  .document-list table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .document-list th, .document-list td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+  
+  .document-list th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+  
+  .document-list tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  .document-list tbody tr:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .document-list button {
+    margin-top: 10px;
+  }
+  .pagination {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+  }
+  .page-numbers a, .page-numbers .current {
+    margin-right: 5px;
+    font-size: 18px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    text-decoration: none;
+    color: #333;
+  }
+  .page-numbers a:hover {
+    background-color: #f5f5f5;
+  }
+  .page-numbers .current {
+    font-weight: bold;
+    color: white;
+    background-color: #007bff;
+  }
+  .page-info {
+    margin-left: 20px;
+    font-weight: bold;
   }
 </style>
 
 <!-- [ Main Content ] start -->
 <div class="content-wrapper">
-  <div class="upload-section">
-    <h3>Upload a document</h3>
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %} {{ form.as_p }}
-      <button type="submit">Upload</button>
-      <button type="reset">Cancel</button>
-    </form>
-  </div>
   <div class="document-list">
-    <h3>Uploaded documents</h3>
-    <form method="post">
-      {% csrf_token %}
-      <ul>
+    <div class="header">
+      <h3>Document List ({{ document_count }})</h3>
+      <div class="upload-section">
+        <form id="upload-form" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <label for="{{ form.upload.id_for_label }}">Add file:</label>
+            {{ form.upload }}
+        </form>
+        <script>
+            document.querySelector('#{{ form.upload.id_for_label }}').addEventListener('change', function() {
+                document.querySelector('#upload-form').submit();
+            });
+        </script>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>File Name</th>
+          <th>Date Uploaded</th>
+          <th>Analytics</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody>
         {% for document in documents %}
-        <li class="document-item">
-          <input type="checkbox" name="document_ids" value="{{ document.id }}" />
-          <a class="document-name" href="{{ document.upload.url }}">{{ document.upload.name|basename }}</a>
-          <details>
-            <summary>View Details</summary>
-            <b>Content Summary:</b>
-            <p>{{ document.content_summary }}</p>
-            {% if document.wordcloud %}
-            <img src="{{ document.wordcloud.url }}" alt="Word Cloud" />
-            {% endif %}
-          </details> <Br>
-        </li>
-        {% endfor %}
-      </ul>
-      <button type="submit" name="delete">Delete Selected</button>
+        <tr>
+          <td><a class="document-name" href="{{ document.upload.url }}">{{ document.upload.name|basename }}</a></td>
+          <td>{{ document.uploaded_at|date:"F d, Y" }}</td>
+          <td><a href="{% url 'document_detail' document.id %}">Details</a></td>
+          <td>
+    <form method="post" action="{% url 'delete_document' document.id %}">
+      {% csrf_token %}
+      <input type="submit" value="Delete" />
     </form>
-  </div>
+          </td>
+        </tr>
+        {% endfor %}
+
+      </tbody>
+    </table>
+    {% if documents.has_other_pages %}
+    <div class="pagination">
+        <div class="page-numbers">
+            {% for i in documents.paginator.page_range %}
+                {% if documents.number == i %}
+                    <span class="current">{{ i }}</span>
+                {% else %}
+                    <a href="?page={{ i }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">{{ i }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="page-info">
+            Page {{ documents.number }} of {{ documents.paginator.num_pages }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if form.errors %}
+        <div class="form-errors">
+            <p>Please correct the errors below:</p>
+            {{ form.errors }}
+        </div>
+    {% endif %}
 </div>
+
 <!-- [ Main Content ] end -->
 
 {% endblock content %} {% load static %}

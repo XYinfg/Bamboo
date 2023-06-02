@@ -1,0 +1,36 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+{% load filters %}
+
+{% block content %}
+  <div class="details-page">
+    <h2>{{ document.upload.name|basename }}</h2>
+
+    <div class="details-section">
+      <b>Creation Date:</b>
+      <p>{{ document.uploaded_at|date:"F d, Y" }}</p>
+    </div>
+
+    <div class="details-section">
+      <b>Content Summary:</b>
+      <p>{{ document.content_summary }}</p>
+    </div>
+
+    {% if document.word_freq %}
+      <div class="details-section">
+        <b>Word Frequency:</b> <br>
+        <img src="{{ document.word_freq.url }}" alt="Word Frequency" />
+      </div>
+    {% endif %}
+
+
+    {% if document.wordcloud %}
+      <div class="details-section">
+        <b>Word Cloud:</b> <Br>
+        <img src="{{ document.wordcloud.url }}" alt="Word Cloud" />
+      </div>
+    {% endif %}
+
+    <a href="{% url 'document_upload_list' %}" class="back-link">Back to documents</a>
+  </div>
+{% endblock content %}

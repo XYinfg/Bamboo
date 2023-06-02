@@ -50,6 +50,9 @@ import matplotlib.pyplot as plt
 
 from django.core.paginator import Paginator
 
+import nltk
+from nltk.corpus import stopwords
+
 
 def index(request):
     context = {
@@ -380,7 +383,49 @@ def document_upload_list(request):
                 except Exception as e:
                     print("Error occurred:", str(e))
 
+
+                if 'zh' in detect(text):
+                    seg_list = jieba.cut(text, cut_all=False)
+                    words = " ".join(seg_list).split()
+                else:
+                    words = nltk.word_tokenize(text)
+                    logger.info("EN Tokenized")
+                    
+
+                # Filter out stopwords
+                stop_words = set(stopwords.words('english'))  # Might need to extend this set with Chinese stopwords
+                filtered_words = [word for word in words if word.casefold() not in stop_words and word.isalpha()]
+
+                # Compute word frequency
+                word_counts = Counter(filtered_words)
+
+                # Get the 10 most common words
+                common_words = word_counts.most_common(10)
+                logger.info(f"Words: {common_words}")
+
+                # Generate the bar chart
+                plt.figure(figsize=(10, 5))  # adjust as necessary
+                labels, values = zip(*common_words)
+                plt.bar(labels, values)
+                plt.xlabel('Words')
+                plt.ylabel('Frequency')
+                plt.title('Top 10 most common words')
+                logger.info("Plot done")
+
+                # Save the chart as an image
+                word_freq_image = BytesIO()
+                plt.savefig(word_freq_image, format='png')
+                word_freq_image.seek(0)
+                logger.info("Image generated")
+
+                # Save the image to the document
+                document.word_freq.save(f'{document.id}_freq.png', File(word_freq_image), save=True)
+                logger.info("Image saved")
+
                 return redirect('document_upload_list')
+
+                #return redirect('document_upload_list')
+            
             else:
                 # form is not valid, let's return the form to the template with the error messages
                 documents = Document.objects.all()
@@ -388,56 +433,19 @@ def document_upload_list(request):
                 page_number = request.GET.get('page')
                 documents = paginator.get_page(page_number)
                 return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
-            '''
-            if 'zh' in detect(text):
-                seg_list = jieba.cut(text, cut_all=False)
-                words = " ".join(seg_list).split()
-            else:
-                words = nltk.word_tokenize(text)
-                logger.info("EN Tokenized")
-
-            # Filter out stopwords
-            stop_words = set(stopwords.words('english'))  # Might need to extend this set with Chinese stopwords
-            filtered_words = [word for word in words if word.casefold() not in stop_words]
-
-            # Compute word frequency
-            word_counts = Counter(filtered_words)
-
-            # Get the 10 most common words
-            common_words = word_counts.most_common(10)
-            logger.info(f"Words: {common_words}")
-
-            # Generate the bar chart
-            plt.figure(figsize=(10, 5))  # adjust as necessary
-            labels, values = zip(*common_words)
-            plt.bar(labels, values)
-            plt.xlabel('Words')
-            plt.ylabel('Frequency')
-            plt.title('Top 10 most common words')
-            logger.info("Plot done")
-
-            # Save the chart as an image
-            word_freq_image = BytesIO()
-            plt.savefig(word_freq_image, format='png')
-            word_freq_image.seek(0)
-            logger.info("Image generated")
-
-            # Save the image to the document
-            document.word_freq.save(f'{document.id}_freq.png', File(word_freq_image), save=True)
-            logger.info("Image saved")
-
-            return redirect('document_upload_list')
-            '''
+            
+            
+            
 
     form = DocumentForm()
     # Paginate the documents
     documents = Document.objects.all()
-    paginator = Paginator(documents, 10)  # Show 10 documents per page
+    paginator = Paginator(documents, 15)  # Show 10 documents per page
     page_number = request.GET.get('page')
     documents = paginator.get_page(page_number)
 
     #documents = Document.objects.all()
-    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
+    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents, 'document_count': paginator.count})
   
 def delete_document(request, document_id):
     if request.method == 'POST':

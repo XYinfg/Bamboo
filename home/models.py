@@ -6,6 +6,7 @@ class Document(models.Model):
     upload = models.FileField(upload_to='uploads/')
     content_summary = models.TextField(blank=True)
     wordcloud = models.ImageField(upload_to='wordclouds/', blank=True)
+    word_freq = models.ImageField(upload_to='word_freqs/', null=True, blank=True)
     # Add other fields for analytics as needed
     def delete(self, *args, **kwargs):
         # Delete the uploaded document
