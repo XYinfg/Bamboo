@@ -53,6 +53,7 @@ urlpatterns = [
   path('sample-page/', views.sample_page, name='sample_page'),
 
   path('documents/', views.document_upload_list, name='document_upload_list'),
+  path('documents/<int:document_id>/delete/', views.delete_document, name='delete_document'),
   path('documents/<int:document_id>/', views.document_detail, name='document_detail'),
   
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
