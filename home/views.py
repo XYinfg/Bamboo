@@ -40,6 +40,7 @@ import io
 import codecs
 from textrank4zh import TextRank4Sentence
 import jieba
+import jieba.analyse
 from os import path
 from imageio import imread
 
@@ -52,6 +53,15 @@ from django.core.paginator import Paginator
 
 import nltk
 from nltk.corpus import stopwords
+from matplotlib.font_manager import FontProperties
+
+import openai
+from decouple import config
+
+from langdetect import detect, DetectorFactory
+DetectorFactory.seed = 0
+
+from django.http import JsonResponse
 
 
 def index(request):
@@ -219,89 +229,23 @@ from PyPDF2 import PdfReader
 from transformers import BartTokenizer, BartForConditionalGeneration
 model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn')
 tokenizer = BartTokenizer.from_pretrained('facebook/bart-large-cnn')
-'''
-def summarize_text(text):
-    inputs = tokenizer([text], max_length=1024, return_tensors='pt')
-    summary_ids = model.generate(inputs['input_ids'], num_beams=4, early_stopping=True)
-    return [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summary_ids]
-'''
-'''
-@transaction.atomic
-def document_upload_list(request):
-    if request.method == 'POST':
-        if 'delete' in request.POST:
-            # Delete selected documents
-            document_ids = request.POST.getlist('document_ids')
-            Document.objects.filter(id__in=document_ids).delete()
-        else:
-            # Upload a new document
-            form = DocumentForm(request.POST, request.FILES)
-            if form.is_valid():
-                document = form.save()
 
-                # Read the Word document
-                file = BytesIO(document.upload.read())
-                ##docx_document = DocxDocument(docx_file)
-
-                # Extract the text
-                ##text = '\n'.join([
-                    ##paragraph.text for paragraph in docx_document.paragraphs
-                ##])
-                # Extract the text
-                if document.upload.name.endswith('.docx'):
-                    docx_document = DocxDocument(file)
-                    print("Doc identified")
-                    text = '\n'.join([
-                        paragraph.text for paragraph in docx_document.paragraphs
-                    ])
-                elif document.upload.name.endswith('.pdf'):
-                    print("Pdf identified")
-                    reader = PdfReader(file)
-                    text = '\n'.join([
-                        page.extract_text() for page in reader.pages
-                    ])
-                else:
-                    print("Passed")
-                    # Handle other file types as needed
-                    pass
-                  
-                # Create a summary
-                model = Summarizer()
-                summary = model(text, min_length=60, max_length=500)
-                print("Summarized")
-                ##summary = summarize_text(text)
-
-                # Save the summary to the document
-                document.content_summary = summary
-
-                try:
-                    # Generate a word cloud
-                    wordcloud = WordCloud(width=1500, height=1000).generate(text)
-                    plt.imshow(wordcloud, interpolation='bilinear')
-                    plt.axis("off")
-
-                    # Save the word cloud as an image
-                    wordcloud_image = BytesIO()
-                    plt.savefig(wordcloud_image, format='png')
-                    wordcloud_image.seek(0)
-                    document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
-                except Exception as e:
-                    print("Wordcloud error")
-
-                return redirect('document_upload_list')
-
-    form = DocumentForm()
-    documents = Document.objects.all()
-    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
-'''
 
 
 def document_upload_list(request):
+    questions = []
     if request.method == 'POST':
-            # Upload a new document
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+
             form = DocumentForm(request.POST, request.FILES)
             if form.is_valid():
                 document = form.save()
+                document_data = {
+                'id': document.id,
+                'name': document.upload.name,
+                'url': document.upload.url,
+                'uploaded_at': document.uploaded_at.strftime('%F d, Y'),  # Format the date
+            }
 
                 # Read the Word document
                 file = BytesIO(document.upload.read())
@@ -393,8 +337,24 @@ def document_upload_list(request):
                     
 
                 # Filter out stopwords
-                stop_words = set(stopwords.words('english'))  # Might need to extend this set with Chinese stopwords
-                filtered_words = [word for word in words if word.casefold() not in stop_words and word.isalpha()]
+                stop_words = set(stopwords.words('english')) 
+                stop_words_zh = "stopwords/cn_stopwords.txt"
+                jieba.analyse.set_stop_words(stop_words_zh)  # Load Chinese stopwords
+
+                if 'zh' in detect(text):
+                    seg_list = jieba.cut(text, cut_all=False)
+                    words = " ".join(seg_list).split()
+                    filtered_words = [word for word in words if word.isalpha()]  # No need to casefold, as Chinese has no case
+                else:
+                    words = nltk.word_tokenize(text)
+                    logger.info("EN Tokenized")
+                    filtered_words = [word for word in words if word.casefold() not in stop_words and word.isalpha()]
+
+
+                #filtered_words = [word for word in words if word.casefold() not in stop_words and word.isalpha()]
+                plt.rcParams['font.family'] = 'SimHei'
+                plt.rcParams['axes.unicode_minus'] = False
+                my_font = FontProperties(fname='fonts/chinese.msyh.ttf')
 
                 # Compute word frequency
                 word_counts = Counter(filtered_words)
@@ -409,7 +369,8 @@ def document_upload_list(request):
                 plt.bar(labels, values)
                 plt.xlabel('Words')
                 plt.ylabel('Frequency')
-                plt.title('Top 10 most common words')
+                plt.title('Top 10 most common words', fontproperties=my_font)
+                plt.xticks(fontproperties=my_font)
                 logger.info("Plot done")
 
                 # Save the chart as an image
@@ -422,7 +383,37 @@ def document_upload_list(request):
                 document.word_freq.save(f'{document.id}_freq.png', File(word_freq_image), save=True)
                 logger.info("Image saved")
 
-                return redirect('document_upload_list')
+                # Your API key should be stored as an environment variable
+                openai.api_key = config('OPENAI_API_KEY')
+
+                # Assume the text to be the input for chatgpt
+                message = "\n\nHere is a document, based on its content, generate 3 thought provoking questions to reflect on the article: (answer in the language of the document)\n" + text
+
+                # Generate a response using ChatGPT
+                response = openai.ChatCompletion.create(
+                  model="gpt-3.5-turbo",
+                  messages=[
+                        {"role": "system", "content": "You are a knowledgable scholar."},
+                        {"role": "user", "content": f"\n\nHere is a document, based on its content, generate 3 thought provoking questions to reflect on the article: (answer in the language of the document)\n{text}"},
+                    ],
+                )
+
+                # The response will be a JSON object, you can get the text from the 'choices' key
+                #gpt_response = response.choices[0].text.strip()
+                gpt3_output  = response['choices'][0]['message']['content']
+                questions = gpt3_output.split('\n') # split the response into lines
+                # Filter out any empty strings or non-question sentences
+                questions = [q.strip() for q in questions if q.strip() and q.strip().endswith('?')]
+                logger.info(f"GPT-3 generated questions: {questions}")
+                document.gpt_questions = "\n".join(questions)
+                document.save()
+                # Now you can do whatever you want with gpt_response
+                # For example, you might want to add it to your document object and save it
+                #document.gpt_response = gpt_response
+                #document.save()
+                return JsonResponse({'status': 'success', 'document': document_data})
+
+                #return redirect('document_upload_list')
 
                 #return redirect('document_upload_list')
             
@@ -432,14 +423,15 @@ def document_upload_list(request):
                 paginator = Paginator(documents, 10)  # Show 10 documents per page
                 page_number = request.GET.get('page')
                 documents = paginator.get_page(page_number)
-                return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
+                #return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents, 'questions': questions})
+                return JsonResponse({'status': 'error', 'errors': form.errors.as_json()})
             
             
             
 
     form = DocumentForm()
     # Paginate the documents
-    documents = Document.objects.all()
+    documents = Document.objects.all().order_by('-uploaded_at')
     paginator = Paginator(documents, 15)  # Show 10 documents per page
     page_number = request.GET.get('page')
     documents = paginator.get_page(page_number)
@@ -456,69 +448,3 @@ def delete_document(request, document_id):
 def document_detail(request, document_id):
   document = get_object_or_404(Document, pk=document_id)
   return render(request, 'pages/document_detail.html', {'document': document})
-
-'''  
-def document_upload_list(request):
-    if request.method == 'POST':
-        if 'delete' in request.POST:
-            # Delete selected documents
-            document_ids = request.POST.getlist('document_ids')
-            Document.objects.filter(id__in=document_ids).delete()
-        else:
-            # Upload a new document
-            form = DocumentForm(request.POST, request.FILES)
-            if form.is_valid():
-                document = form.save()
-
-                # Read the Word document
-                file = BytesIO(document.upload.read())
-
-                # Extract the text
-                if document.upload.name.endswith('.docx'):
-                    docx_document = DocxDocument(file)
-                    text = '\n'.join([
-                        paragraph.text for paragraph in docx_document.paragraphs
-                    ])
-                    logger.info(f"Extracted Text: {text}")
-                elif document.upload.name.endswith('.pdf'):
-                    try:
-                        reader = PdfReader(file)
-                        text = '\n'.join([
-                            page.extract_text() for page in reader.pages
-                        ])
-                        logger.info(f"Extracted Text: {text}")
-                    except PDFSyntaxError as e:
-                        logger.error(f"Failed to read PDF: {e}")
-                        return redirect('document_upload_list')
-                else:
-                    pass
-
-                # Create a summary
-                model = Summarizer()
-                summary = model(text, min_length=60, max_length=500)
-                logger.info(f"Summary: {summary}")
-
-                # Save the summary to the document
-                document.content_summary = summary
-
-                try:
-                    # Generate a word cloud
-                    wordcloud = WordCloud(width=1500, height=1000, background_color='white', horizontal_layout=True).generate(text)
-                    plt.imshow(wordcloud, interpolation='bilinear')
-                    plt.axis("off")
-
-                    # Save the word cloud as an image
-                    wordcloud_image = BytesIO()
-                    plt.savefig(wordcloud_image, format='png')
-                    wordcloud_image.seek(0)
-                    document.wordcloud.save(f'{document.id}.png', File(wordcloud_image), save=True)
-                except Exception as e:
-                    print("Wordcloud error:", e)
-
-                return redirect('document_upload_list')
-
-    form = DocumentForm()
-    documents = Document.objects.all()
-    return render(request, 'pages/document_upload_list.html', {'form': form, 'documents': documents})
-'''  
-
